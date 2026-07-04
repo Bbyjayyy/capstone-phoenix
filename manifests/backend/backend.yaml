@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: taskapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/tes-balo/taskapp-backend@sha256:d3b0f1fb8045efa28bb1cfe55c81bcae42cd02a6c5ae85b651ed0d4bcf8357d3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - secretRef:
+                name: taskapp-secret
+          env:
+            - name: DATABASE_URL
+              value: postgresql://taskapp:joyyypass@postgres.taskapp.svc.cluster.local:5432/taskapp
+            - name: DATABASE_URI
+              value: postgresql://taskapp:joyyypass@postgres.taskapp.svc.cluster.local:5432/taskapp
+            - name: SQLALCHEMY_DATABASE_URI
+              value: postgresql://taskapp:joyyypass@postgres.taskapp.svc.cluster.local:5432/taskapp
+            - name: DATABASE_HOST
+              value: postgres.taskapp.svc.cluster.local
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: DATABASE_NAME
+              value: taskapp
+            - name: DATABASE_USER
+              value: taskapp
+            - name: DATABASE_PASSWORD
+              value: ChangeMeStrongPassword123
+            - name: POSTGRES_HOST
+              value: postgres
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 6 
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: taskapp
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 5000
+      targetPort: 5000

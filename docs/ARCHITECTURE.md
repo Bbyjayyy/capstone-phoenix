@@ -1,47 +1,51 @@
-# Architecture (fill this in)
+# TaskApp Kubernetes Architecture
 
-## 1. Topology diagram
-> Draw it (ASCII, Excalidraw, draw.io — anything). Show: your nodes, where each TaskApp
-> tier runs, the ingress controller, and the request path.
+## Overview
 
-```
-[ replace with your diagram ]
+TaskApp is deployed on a 3-node k3s Kubernetes cluster on AWS EC2.
 
-  Internet ──DNS──▶ taskapp.<you>.dev / api.<you>.dev
-        │
-        ▼
-  ingress controller (node: ____)  ──TLS terminated by cert-manager──┐
-        │                                                            │
-        ▼                                                            ▼
-  frontend Service ──▶ frontend Pods (nodes: __, __)        backend Service ──▶ backend Pods (nodes: __, __)
-                              │  /api proxy                              │
-                              └────────────────────────────────────────▶│
-                                                                         ▼
-                                                          postgres Service ──▶ postgres-0 (PVC on node __)
-```
+- 1 control-plane node
+- 2 worker nodes
+- Dedicated namespace: `taskapp`
+- PostgreSQL runs as a StatefulSet with persistent storage
+- Backend runs as a Deployment with 2 replicas
+- Frontend runs as a Deployment with 2 replicas
+- Services expose frontend, backend, and Postgres internally
+- Traefik Ingress routes external HTTP traffic to the frontend and backend
 
-## 2. Node & network
-- Nodes (role, size, AZ/region): …
-- CIDR / subnet choices and why: …
-- Firewall: what's open to the world, what's internal, and why `6443` is closed: …
+## Request Flow
 
-## 3. Request flow (one paragraph)
-> DNS → ingress → TLS → frontend → /api → backend → Postgres. Be specific about names/ports.
+User browser -> Ingress/Traefik -> Frontend Service -> Frontend Pods
 
-## 4. The single-server assumptions you fixed  ← graders look here
-> For each, name the assumption that was safe on one box but breaks on a cluster, and the
-> K8s mechanism you used. Minimum: migrations, persistent storage, traffic routing,
-> self-healing, zero-downtime deploys, secrets.
+API traffic follows:
 
-| Single-server assumption | Why it breaks at scale | How you fixed it |
-|---|---|---|
-| migrate-on-boot in the entrypoint | 2+ replicas race on `alembic upgrade head` | … |
-| named volume on the host | Pods reschedule across nodes | … |
-| `ports:` published on the host | many Pods, many nodes, one front door needed | … |
-| … | … | … |
+Frontend -> Backend Service -> Backend Pods -> PostgreSQL Service -> Postgres StatefulSet/PVC
 
-## 5. Choices & trade-offs
-- Raw YAML vs Helm vs kustomize — why: …
-- ingress-nginx vs k3s Traefik — why: …
-- CNI / NetworkPolicy enforcement — what and why: …
-- Secrets approach (out-of-band vs Sealed/External Secrets) — why: …
+## Kubernetes Objects
+
+- Namespace: `taskapp`
+- Secret: `taskapp-secret`
+- StatefulSet: `postgres`
+- PVC: PostgreSQL data storage
+- Deployment: `backend`
+- Deployment: `frontend`
+- Services: `frontend`, `backend`, `postgres`
+- Ingress: `taskapp-ingress`
+
+## Multi-node Design
+
+The cluster uses three real EC2 nodes. The app is designed to run with multiple frontend and backend replicas to reduce single-node risk.
+
+## Networking
+
+Kubernetes DNS resolves internal services such as:
+
+- `frontend.taskapp.svc.cluster.local`
+- `backend.taskapp.svc.cluster.local`
+- `postgres.taskapp.svc.cluster.local`
+
+During deployment, a pod DNS issue was resolved by allowing node-to-node traffic in the AWS security group.
+
+## Evidence
+
+Screenshots and logs are stored in `docs/EVIDENCE/`.

@@ -1,25 +1,22 @@
-# Cost (fill this in)
+# Cost Estimate
 
-This echoes the Docker lesson's "why one server" thread — except now the answer to "is the
-extra cost worth it?" is yours to argue.
+## AWS EC2
 
-## Monthly itemized cost
-| Item | Spec | Qty | $/mo |
-|---|---|---:|---:|
-| control-plane VM | … | 1 | … |
-| worker VMs | … | 2+ | … |
-| load balancer / elastic IP | … | … | … |
-| block storage (PVC) | … | … | … |
-| object storage (state, backups) | … | … | … |
-| DNS / domain | … | … | … |
-| **Total** | | | **$…** |
+This capstone uses 3 small EC2 instances:
 
-## Compared to the single-server Compose+Portainer deploy
-- That stack cost roughly: $…
-- This cluster costs: $…
-- **What the extra spend buys** (be honest — tie to §0 of the brief): HA, autoscale,
-  zero-downtime, multi-node self-healing. When is it NOT worth it? …
+- 1 control-plane node
+- 2 worker nodes
 
-## How I'd halve this
-> One concrete paragraph: spot/preemptible workers? smaller control-plane? k3s on 2 nodes?
-> shared ingress? …
+Estimated monthly cost depends on the chosen EC2 instance type, storage size, and region.
+
+## Storage
+
+PostgreSQL uses a Kubernetes PVC backed by node storage/local-path storage for this capstone.
+
+## Network
+
+Ingress traffic is routed through Traefik on the cluster nodes. No managed load balancer is required for the basic setup.
+
+## Cost Reduction
+
+To reduce cost by half, the cluster can be stopped when not in use, smaller instance types can be used, and non-essential monitoring components can be removed after demo. For production, managed services may increase cost but reduce operational burden.

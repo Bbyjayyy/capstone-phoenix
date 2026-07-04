@@ -1,30 +1,46 @@
-# Runbook (fill this in — a teammate must rebuild from this alone)
+# TaskApp Runbook
 
-## Provision from zero
+## 1. Connect to the cluster
+
+Open the SSH tunnel to the k3s API server:
+
 ```bash
-# 1. infra
-cd infra/terraform && terraform init && terraform apply
-# 2. cluster
-cd ../ansible && ansible-playbook -i inventory site.yml
-# 3. kubeconfig
-export KUBECONFIG=./kubeconfig && kubectl get nodes
-# 4. platform (ingress, cert-manager, metrics-server, argocd) — exact commands:
-#    ...
-# 5. GitOps takes over
-kubectl apply -f gitops/   # then Argo syncs the app
-```
-
-## Day-2 operations
-- **Scale a tier:** … (and note: prefer a git commit so Argo stays the source of truth)
-- **Roll back a bad deploy:** …
-- **Run a new migration safely:** …
-- **Rotate a secret:** …
-
-## Failure recovery (you'll demo one of these live)
-- **A worker node dies / is drained:** what happens, what you do, expected recovery time. …
-  ```bash
-  kubectl drain <node> --ignore-daemonsets --delete-emptydir-data   # the live-demo command
-  ```
-- **A backend Pod crashloops:** how you diagnose (`logs --previous`, `describe`, events). …
-- **A bad migration:** how you recover the DB. …
-- **Postgres Pod is rescheduled:** prove the PVC re-attaches and data is intact. …
+ssh -i ~/downloads/capstone-phoenix-key.pem -L 6443:127.0.0.1:6443 ubuntu@<CONTROL_PLANE_PUBLIC_IP>
+In another terminal:
+export KUBECONFIG=~/downloads/k3s.yaml
+kubectl get nodes
+2. Deploy the application
+kubectl apply -f manifests/namespace.yaml
+kubectl apply -f manifests/secret.yaml
+kubectl apply -f manifests/postgres/
+kubectl apply -f manifests/backend/
+kubectl apply -f manifests/frontend/
+kubectl apply -f manifests/ingress.yaml
+3. Verify status
+kubectl get nodes -o wide
+kubectl get pods -n taskapp -o wide
+kubectl get svc -n taskapp
+kubectl get ingress -n taskapp
+4. Test DNS
+kubectl run dns-test -n taskapp --rm -it --image=busybox:1.36 --restart=Never -- nslookup postgres.taskapp.svc.cluster.local
+5. Test Postgres
+kubectl run pg-test -n taskapp --rm -it --image=postgres:16 --restart=Never -- psql "postgresql://taskapp:<PASSWORD>@postgres.taskapp.svc.cluster.local:5432/taskapp" -c "\l"
+6. Test the frontend locally
+kubectl port-forward -n taskapp svc/frontend 8080:80
+Open:
+http://localhost:8080
+7. Restart a deployment
+kubectl rollout restart deployment/backend -n taskapp
+kubectl rollout status deployment/backend -n taskapp
+8. Roll back a deployment
+kubectl rollout history deployment/backend -n taskapp
+kubectl rollout undo deployment/backend -n taskapp
+9. Recover from backend failure
+kubectl describe pod -n taskapp -l app=backend
+kubectl logs -n taskapp deployment/backend
+kubectl rollout restart deployment/backend -n taskapp
+10. Recover from worker failure
+kubectl get nodes
+kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data
+kubectl get pods -n taskapp -o wide
+kubectl uncordon <node-name>
